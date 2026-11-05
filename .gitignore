@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+secrets/
+credentials/
+*.pem
+*.key
+*.log
+.DS_Store
+work/
+dist/
+.state/

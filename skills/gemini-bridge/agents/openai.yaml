@@ -1,0 +1,6 @@
+interface:
+  display_name: "gemini-bridge"
+  short_description: "Codex tasarlar, Gemini 4 rutin işleri yürütür"
+  default_prompt: "Use $gemini-bridge: keep architecture, UI, icons, important images and final decisions in Codex; delegate routine implementation to local Gemini 4."
+policy:
+  allow_implicit_invocation: true

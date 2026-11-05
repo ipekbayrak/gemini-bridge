@@ -1,0 +1,28 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "antigravity-bridge",
+  "version": "0.2.2",
+  "description": "Gemini Bridge: Codex designs and decides; local Antigravity Gemini 4 executes routine work.",
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Gemini Bridge",
+        "shortDescription": "Gemini 4 ile yerel iş devri",
+        "longDescription": "Otomatik iş bölümü: planlama, mimari, UI, ikonlar ve önemli görseller Codex; rutin uygulama ve Chrome testleri yerel Gemini 4 Heavy/Medium.",
+        "developerName": "Mustafa",
+        "category": "Developer Tools",
+        "capabilities": [
+          "Read",
+          "Write"
+        ],
+        "defaultPrompt": [
+          "$gemini-bridge Mimari, UI, ikonlar ve kararlar sende; rutin işleri yerel Gemini 4 ile yürüt."
+        ],
+        "brandColor": "#142C32",
+        "websiteURL": "https://github.com/ipekbayrak/gemini-bridge"
+      },
+      "requires_local_executor": true
+    }
+  },
+  "license": "MIT"
+}
