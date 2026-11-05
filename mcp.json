@@ -6,7 +6,10 @@
       "command": "./scripts/launch.sh",
       "args": [
         "serve"
-      ]
+      ],
+      "env": {
+        "GEMINI_BRIDGE_LIVE_ROUTING": "1"
+      }
     }
   }
 }

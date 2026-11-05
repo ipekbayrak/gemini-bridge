@@ -94,3 +94,13 @@ Orkestratör, insanın görevde önceden yetkilendirdiği adresleri/dosyaları i
 Köprü yalnız o oturum için alan adı/dosya okuma izinleri ekler. Genel ayarlara, yazma/etkileşim izinlerine dokunmaz. Mevcut `deny/ask` ile çatışırsa işi başlatmadan bildirir; reddedilen eylemi otomatik yeniden denemez. Sağlayıcının alan adı izni alt alanları kapsayabilir; tam URL sınırı işletim sistemi duvarı değil, görev sözleşmesidir.
 
 “Dosyada yalnız genel anahtar var” ifadesi dosyayı kendiliğinden okumaya veya içeriğini başka siteye göndermeye izin vermez. Yeni kapsam gerçek insan yetkisine dayanmalıdır. Engelde `blocked_access` ve `next_action` somut olarak incelenir; çalışanın genel onay sorusu kullanıcıya aynen aktarılmaz.
+
+## Açık sohbetler ve sürüm geçişi
+
+Kurucu `~/.local/bin/gemini-bridge` komutunu ekler. Her çağrı güncel etkin kurulumu doğrulayıp kullanır; `--access-file` dahil argümanlar aynen korunur. Açık sohbetlerde yeni işler bu girişe otomatik yönlendirilir; aynı görevdeki mevcut onay sırf sürüm geçişi nedeniyle yeniden sorulmaz. Kapsam genişletilmez ve reddedilmiş iş otomatik tekrar denenmez.
+
+```sh
+~/.local/bin/gemini-bridge --where
+```
+
+Yeni MCP bağlantıları her istekte güncel kodu seçer. Önceden açılmış eski bir MCP sürecinin belleği dosya kopyalayarak değişmez; masaüstünün canlı yenileme bağlantısı yoksa sohbeti kapatmadan güncel CLI kullanılır. Bu akış eski taşıma bağlantılarının fiziksel olarak yenilendiği iddiası değildir. Devam eden ayrık işler aynı durum dizininde korunur.

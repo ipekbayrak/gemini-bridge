@@ -26,6 +26,7 @@ REQUIRED_ARCHIVE_FILES = {
     "README.md",
     "LICENSE",
     "scripts/bridge.py",
+    "scripts/current_bridge.py",
     "scripts/setup.py",
     "scripts/package.py",
     "scripts/launch.sh",

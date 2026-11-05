@@ -39,7 +39,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from task_access import TaskAccessError, validate_access, prepare_settings, describe_access
 
 SERVER_NAME = "antigravity-bridge"
-SERVER_VERSION = "0.3.0"
+SERVER_VERSION = "0.3.1"
 MCP_PROTOCOL_VERSION = "2024-11-05"
 
 PROFILE_TO_MODEL: dict[str, str] = {
@@ -448,6 +448,7 @@ def op_start(
             "model": model,
             "timeout_seconds": valid_timeout,
             "agy_executable": agy_bin,
+            "bridge_version": SERVER_VERSION,
             "access": task_access,
             "status": "running",
             "pid": None,
@@ -592,6 +593,7 @@ def op_result(job_id: Any) -> dict[str, Any]:
         "profile": state["profile"],
         "exit_code": state.get("exit_code"),
         "last_tool": state.get("last_tool"),
+        "bridge_version": state.get("bridge_version"),
         "access_summary": {"read_url_count": len(state.get("access", {}).get("read_urls", [])),
                            "read_file_count": len(state.get("access", {}).get("read_files", []))},
         "permission_denials": state.get("permission_denials") or [],
@@ -1489,6 +1491,7 @@ def build_cli_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("doctor")
     sub.add_parser("serve")
+    sub.add_parser("rpc-one")
 
     p_worker = sub.add_parser("_worker")
     p_worker.add_argument("--job-id", required=True)
@@ -1513,6 +1516,11 @@ def main(argv: list[str] | None = None) -> int:
             return run_worker(ns.job_id, ns.lock_fd, ns.ready_fd)
         if ns.command == "serve":
             return serve_mcp()
+        if ns.command == "rpc-one":
+            response = handle_jsonrpc_message(sys.stdin.readline())
+            if response is not None:
+                print(json.dumps(response))
+            return 0
         if ns.command == "start":
             task_path = Path(ns.task_file)
             if not task_path.is_file():

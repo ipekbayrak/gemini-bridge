@@ -79,4 +79,11 @@ if [ "$#" -eq 0 ]; then
     set -- serve
 fi
 
+if [ "$1" = --current ]; then
+    shift
+    exec "${PYTHON_BIN}" "${SCRIPT_DIR}/current_bridge.py" "$@"
+fi
+if [ "$1" = serve ] && [ "${GEMINI_BRIDGE_LIVE_ROUTING:-}" = 1 ] && [ -f "${SCRIPT_DIR}/current_bridge.py" ]; then
+    exec "${PYTHON_BIN}" "${SCRIPT_DIR}/current_bridge.py" serve
+fi
 exec "${PYTHON_BIN}" "${BRIDGE_PY}" "$@"

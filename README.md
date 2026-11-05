@@ -132,3 +132,16 @@ For a read-only audit, the host supplies destinations and files already authoriz
 `agy_start` accepts this optional `access` object. CLI uses `--access-file access.json` with the inner object (`read_urls`/`read_files`). Only session-local `read_url(host)` and `read_file(canonical-path)` rules are added. No global configuration changes, `execute_url`, file writes or blanket permissions are added. Existing CLI deny/ask conflicts stop preflight. Provider/project/organization rules still apply. Domain grants can cover subdomains; exact URL limits remain a task contract, not a network firewall.
 
 Declare only human-authorized targets. “Public site” or “general-use key” descriptions do not authorize reading unrelated files or exposing their contents. A denied request is returned as a blocker; the bridge never retries or widens permissions automatically. `blocked_access`, `tool_failures`, `permission_denials` and `next_action` help the host report specific failures instead of forwarding generic approval questions.
+
+## Open chats and upgrades
+
+The installer adds `~/.local/bin/gemini-bridge`, a stable current-runtime command. For example:
+
+```sh
+~/.local/bin/gemini-bridge --where
+~/.local/bin/gemini-bridge start --workspace /absolute/project --task-file task.txt --access-file access.json
+```
+
+Every call resolves the currently enabled local plugin, validates its identity/version, and forwards arguments unchanged. Use the same previously authorized scope file; upgrading does not create new authority. New MCP connections dispatch each request to fresh installed code and advertise tool changes when versions change. Detached job state survives this routing.
+
+An MCP process already running old code cannot be hot-patched by copying files. If the desktop host does not expose a working live-reload control, the stable CLI path works without closing chats or dropping scope. The agent instructions select it automatically; no claim is made that every old transport was physically reconnected. Unavailable or inconsistent installations return `runtime_unavailable`; no stale fallback, policy widening, or denied-action retry occurs.

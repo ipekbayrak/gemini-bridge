@@ -1159,6 +1159,17 @@ def configure_credit_overage(settings_path: Path, gemini_config_path: Path) -> d
     }
 
 
+def install_current_command(plugin_dir: Path, home: Path) -> dict[str, Any]:
+    import shlex
+    target = home / ".local" / "bin" / "gemini-bridge"
+    marker = "# Managed by Gemini Bridge current-runtime dispatcher"
+    if target.is_symlink() or (target.exists() and not target.read_text(errors="replace").startswith("#!/bin/sh\n" + marker + "\n")):
+        raise SetupError("Existing unrelated gemini-bridge command was preserved", step="install_current_command")
+    command = "#!/bin/sh\n" + marker + "\nexec " + shlex.quote(str(plugin_dir / "scripts" / "launch.sh")) + " --current \"$@\"\n"
+    atomic_write_bytes(target, command.encode(), mode=0o755)
+    return {"path": str(target), "routing": "current_installed", "changed": True}
+
+
 def run_install(
     source_root: Path | None = None,
     with_chrome: bool = False,
@@ -1256,9 +1267,12 @@ def run_install(
         if credit_result.get("changed"):
             changes.append("credit_overage_disabled")
 
+    current_command = install_current_command(dest_plugin_dir, home_dir)
+    changes.append("current_runtime_command_installed")
     return {
         "ok": True,
         "installed": True,
+        "current_command": current_command,
         "marketplace_name": MARKETPLACE_NAME,
         "marketplace_root": str(marketplace_root),
         "marketplace_manifest": str(manifest_path),
