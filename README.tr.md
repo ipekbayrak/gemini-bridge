@@ -82,3 +82,15 @@ codex plugin remove antigravity-bridge@gemini-bridge-local
 Kaldırma görev günlüklerini veya isteğe bağlı eklenen ayarları silmez. Otomatik iş bölümünü kapatmak için genel `AGENTS.md` içindeki yalnız Gemini Bridge işaretli bloğu kaldırın.
 
 MIT lisansı: [LICENSE](LICENSE). Google veya OpenAI'nin resmî ürünü değildir. GitHub'da açık kaynak paylaşımı, OpenAI eklenti mağazasında onaylı yayın anlamına gelmez.
+
+## Göreve özel salt okunur erişim (0.3.0)
+
+Orkestratör, insanın görevde önceden yetkilendirdiği adresleri/dosyaları iş başlamadan `agy_start.access` alanına koyar. CLI karşılığı `--access-file erişim.json` seçeneğidir:
+
+```json
+{"read_urls":["https://example.invalid/sayfa"],"read_files":["/tam/onaylanmis-dosya.json"]}
+```
+
+Köprü yalnız o oturum için alan adı/dosya okuma izinleri ekler. Genel ayarlara, yazma/etkileşim izinlerine dokunmaz. Mevcut `deny/ask` ile çatışırsa işi başlatmadan bildirir; reddedilen eylemi otomatik yeniden denemez. Sağlayıcının alan adı izni alt alanları kapsayabilir; tam URL sınırı işletim sistemi duvarı değil, görev sözleşmesidir.
+
+“Dosyada yalnız genel anahtar var” ifadesi dosyayı kendiliğinden okumaya veya içeriğini başka siteye göndermeye izin vermez. Yeni kapsam gerçek insan yetkisine dayanmalıdır. Engelde `blocked_access` ve `next_action` somut olarak incelenir; çalışanın genel onay sorusu kullanıcıya aynen aktarılmaz.

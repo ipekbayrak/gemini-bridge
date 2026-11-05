@@ -120,3 +120,15 @@ Gemini Bridge is an independent integration, not an official Google or OpenAI pr
 ## License
 
 MIT — see [LICENSE](LICENSE). The license covers this bridge code, not Google/OpenAI services, accounts, brands or third-party dependencies. Each provider’s terms remain separate.
+
+## Task-scoped read access (0.3.0)
+
+For a read-only audit, the host supplies destinations and files already authorized by the human task **before** dispatch:
+
+```json
+{"access":{"read_urls":["https://example.invalid/page"],"read_files":["/absolute/approved-file.json"]}}
+```
+
+`agy_start` accepts this optional `access` object. CLI uses `--access-file access.json` with the inner object (`read_urls`/`read_files`). Only session-local `read_url(host)` and `read_file(canonical-path)` rules are added. No global configuration changes, `execute_url`, file writes or blanket permissions are added. Existing CLI deny/ask conflicts stop preflight. Provider/project/organization rules still apply. Domain grants can cover subdomains; exact URL limits remain a task contract, not a network firewall.
+
+Declare only human-authorized targets. “Public site” or “general-use key” descriptions do not authorize reading unrelated files or exposing their contents. A denied request is returned as a blocker; the bridge never retries or widens permissions automatically. `blocked_access`, `tool_failures`, `permission_denials` and `next_action` help the host report specific failures instead of forwarding generic approval questions.
