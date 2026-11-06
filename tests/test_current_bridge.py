@@ -150,6 +150,19 @@ class CurrentBridgeTestCase(unittest.TestCase):
             with self.assertRaises(current_bridge.DispatchError):
                 current_bridge.resolve_current()
 
+    def test_verified_cache_survives_a_failed_source_upgrade(self) -> None:
+        cached=self._make_plugin("cached-seed","0.3.1")
+        cache=self.codex_home/"plugins/cache/gemini-bridge-local/antigravity-bridge/0.3.1"
+        cache.parent.mkdir(parents=True);cached.rename(cache)
+        mutable=self._make_plugin("mutable-source","0.3.2")
+        self._write_catalog([self._entry(mutable,"0.3.1")])
+        pointer=self.codex_home/"plugin-marketplaces/gemini-bridge/active-runtime.json"
+        pointer.parent.mkdir(parents=True)
+        pointer.write_text(json.dumps({"plugin":"antigravity-bridge@gemini-bridge-local","version":"0.3.1","path":str(cache)}))
+        self.assertEqual(current_bridge.resolve_current(),(cache/"scripts/bridge.py","0.3.1"))
+        pointer.unlink()
+        with self.assertRaises(current_bridge.DispatchError):current_bridge.resolve_current()
+
     def test_dispatch_line_notifications_and_error_reporting(self) -> None:
         out = current_bridge.dispatch_line(json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}))
         self.assertEqual(out, [])
@@ -163,6 +176,19 @@ class CurrentBridgeTestCase(unittest.TestCase):
         }))
         self.assertTrue(res[0]["result"]["isError"])
         self.assertEqual(res[0]["result"]["structuredContent"]["code"], "runtime_unavailable")
+
+    def test_malformed_engine_response_does_not_crash_dispatcher(self) -> None:
+        request=json.dumps({"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"agy_status","arguments":{"job_id":"x"}}})
+        bad=[42, {"id":7,"result":None}, {"id":7,"result":{},"error":{}}, {"id":7,"result":{},"_meta":None}]
+        with mock.patch.object(current_bridge,"resolve_current",return_value=(self.root/"unused.py","0.3.2")):
+            for response in bad:
+                with self.subTest(response=response),mock.patch.object(current_bridge.subprocess,"run",return_value=subprocess.CompletedProcess([],0,json.dumps(response)+"\n","")):
+                    result=current_bridge.dispatch_line(request)[0]
+                    self.assertTrue(result["result"]["isError"])
+                    self.assertEqual(result["result"]["structuredContent"]["code"],"runtime_unavailable")
+            good={"jsonrpc":"2.0","id":7,"result":{"content":[],"isError":False}}
+            with mock.patch.object(current_bridge.subprocess,"run",return_value=subprocess.CompletedProcess([],0,json.dumps(good)+"\n","")):
+                self.assertFalse(current_bridge.dispatch_line(request)[0]["result"]["isError"])
 
     def test_live_serve_hot_reload_and_access_integrity(self) -> None:
         p30 = self._make_plugin("plugin-030", "0.3.0")

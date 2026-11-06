@@ -104,3 +104,9 @@ Kurucu `~/.local/bin/gemini-bridge` komutunu ekler. Her çağrı güncel etkin k
 ```
 
 Yeni MCP bağlantıları her istekte güncel kodu seçer. Önceden açılmış eski bir MCP sürecinin belleği dosya kopyalayarak değişmez; masaüstünün canlı yenileme bağlantısı yoksa sohbeti kapatmadan güncel CLI kullanılır. Bu akış eski taşıma bağlantılarının fiziksel olarak yenilendiği iddiası değildir. Devam eden ayrık işler aynı durum dizininde korunur.
+
+## Doğrulama ve kurulum hataları
+
+Başka bir sohbette önceden yetkilendirilmiş gerçek site/dosya denetimi, sahte verili birim testlerinden ayrı doğrulanır. Motor sürümü, korunmuş kapsam ve ret sayısı kaydedilir; müşteri dosyaları/ham günlükler public pakete konulmaz. Dışarıdaki dosyaya salt okunur erişim ile görevde açıkça istenmiş çalışma dizini içi kanıt yazımı çelişmez.
+
+Kurulum, mevcut sabit komutla çatışmayı dosya kopyalama/kayıt işleminden önce kontrol eder. Kaynak değişimi başarısızsa eski çalışan sürüm geri yüklenir. Daha geç bir adım hatasında `partial`, `completed_steps` ve eklenti kaydının gerçekleşip gerçekleşmediği doğru bildirilir.

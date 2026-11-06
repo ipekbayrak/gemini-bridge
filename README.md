@@ -145,3 +145,9 @@ The installer adds `~/.local/bin/gemini-bridge`, a stable current-runtime comman
 Every call resolves the currently enabled local plugin, validates its identity/version, and forwards arguments unchanged. Use the same previously authorized scope file; upgrading does not create new authority. New MCP connections dispatch each request to fresh installed code and advertise tool changes when versions change. Detached job state survives this routing.
 
 An MCP process already running old code cannot be hot-patched by copying files. If the desktop host does not expose a working live-reload control, the stable CLI path works without closing chats or dropping scope. The agent instructions select it automatically; no claim is made that every old transport was physically reconnected. Unavailable or inconsistent installations return `runtime_unavailable`; no stale fallback, policy widening, or denied-action retry occurs.
+
+## Verification and installation failures
+
+A real read-only site/file audit from another authorized chat is tested separately from offline fixtures. Evidence records the engine version, unchanged access scope and denied-action count; customer files and raw logs are not packaged in this public repository. External read scope is compatible with workspace-only artifact writes when those writes were explicitly requested by the task.
+
+Installation checks stable-command conflicts before copying/registering the plugin. Failed source replacement restores the prior runtime. If a later setup step fails, JSON output includes `partial`, `completed_steps` and whether plugin registration had already succeeded, instead of reporting a completed rollback that did not happen.

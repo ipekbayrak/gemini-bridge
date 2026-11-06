@@ -44,6 +44,16 @@ def resolve_current():
         root = Path(source.get('path', ''))
         if not root.is_absolute():
             raise DispatchError('Installed plugin source must be an absolute local directory')
+        codex_home = Path(os.environ.get('CODEX_HOME') or Path.home()/'.codex').expanduser()
+        pointer = codex_home/'plugin-marketplaces/gemini-bridge/active-runtime.json'
+        if pointer.is_file():
+            active = json.loads(pointer.read_text())
+            if active.get('version') == version and active.get('plugin') == 'antigravity-bridge@gemini-bridge-local':
+                cached = Path(active.get('path', ''))
+                cache_root = (codex_home/'plugins/cache/gemini-bridge-local/antigravity-bridge').resolve()
+                if not cached.is_absolute() or not cached.resolve(strict=True).is_relative_to(cache_root):
+                    raise DispatchError('Installed cache pointer is outside the managed plugin cache')
+                root = cached
         root = root.resolve(strict=True)
         manifest = json.loads((root/'plugin.json').read_text())
         if manifest.get('name') != 'antigravity-bridge' or manifest.get('version') != version:
@@ -88,9 +98,15 @@ def dispatch_line(line):
         if p.returncode:
             raise DispatchError('Current bridge request failed; no retry or stale fallback performed')
         messages = [json.loads(row) for row in p.stdout.splitlines() if row.strip()]
-        if len(messages) != 1 or messages[0].get('id') != request.get('id'):
+        if len(messages) != 1 or not isinstance(messages[0], dict) or messages[0].get('id') != request.get('id'):
             raise DispatchError('Current bridge returned an invalid response')
         response = messages[0]
+        if ('result' in response) == ('error' in response):
+            raise DispatchError('Current bridge returned an invalid result/error envelope')
+        if not isinstance(response.get('result', response.get('error')), dict):
+            raise DispatchError('Current bridge returned an invalid MCP result')
+        if '_meta' in response and not isinstance(response['_meta'], dict):
+            raise DispatchError('Current bridge returned invalid metadata')
         response.setdefault('_meta', {})['geminiBridgeVersion'] = version
         if request.get('method') == 'initialize' and 'result' in response:
             response['result'].setdefault('capabilities', {})['tools'] = {'listChanged': True}
