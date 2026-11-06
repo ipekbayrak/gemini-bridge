@@ -821,12 +821,23 @@ def copy_plugin_allowlist(source_root: Path, dest_plugin_dir: Path) -> dict[str,
             if src_d.is_dir() and not src_d.is_symlink():
                 _copy_filtered_tree(src_d, staging_dir / dname)
 
-        if dest_plugin_dir.exists():
-            if dest_plugin_dir.is_symlink() or dest_plugin_dir.is_file():
-                dest_plugin_dir.unlink()
-            else:
-                shutil.rmtree(dest_plugin_dir)
-        os.replace(str(staging_dir), str(dest_plugin_dir))
+        backup = None
+        if dest_plugin_dir.exists() or dest_plugin_dir.is_symlink():
+            backup = Path(tempfile.mkdtemp(dir=str(plugins_parent), prefix=f".previous-{PLUGIN_NAME}-"))
+            backup.rmdir()
+            os.replace(str(dest_plugin_dir), str(backup))
+        try:
+            os.replace(str(staging_dir), str(dest_plugin_dir))
+        except BaseException:
+            if backup is not None and (backup.exists() or backup.is_symlink()):
+                os.replace(str(backup), str(dest_plugin_dir))
+            raise
+        else:
+            if backup is not None:
+                if backup.is_symlink() or backup.is_file():
+                    backup.unlink()
+                else:
+                    shutil.rmtree(backup)
     finally:
         if staging_dir.exists():
             shutil.rmtree(staging_dir, ignore_errors=True)
@@ -1159,15 +1170,47 @@ def configure_credit_overage(settings_path: Path, gemini_config_path: Path) -> d
     }
 
 
+CURRENT_COMMAND_MARKER = "# Managed by Gemini Bridge current-runtime dispatcher"
+
+
+def validate_current_command(home: Path) -> Path:
+    target = home / ".local" / "bin" / "gemini-bridge"
+    try:
+        for parent in (home, home / ".local", target.parent):
+            if parent.exists() and not parent.is_dir():
+                raise SetupError("Stable command parent is not a directory", step="install_current_command")
+        if target.is_symlink() or (target.exists() and (not target.is_file() or not target.read_text(errors="replace").startswith("#!/bin/sh\n" + CURRENT_COMMAND_MARKER + "\n"))):
+            raise SetupError("Existing unrelated gemini-bridge command was preserved", step="install_current_command")
+    except OSError as exc:
+        raise SetupError("Cannot inspect stable command target: " + str(exc), step="install_current_command") from exc
+    return target
+
+
 def install_current_command(plugin_dir: Path, home: Path) -> dict[str, Any]:
     import shlex
-    target = home / ".local" / "bin" / "gemini-bridge"
-    marker = "# Managed by Gemini Bridge current-runtime dispatcher"
-    if target.is_symlink() or (target.exists() and not target.read_text(errors="replace").startswith("#!/bin/sh\n" + marker + "\n")):
-        raise SetupError("Existing unrelated gemini-bridge command was preserved", step="install_current_command")
-    command = "#!/bin/sh\n" + marker + "\nexec " + shlex.quote(str(plugin_dir / "scripts" / "launch.sh")) + " --current \"$@\"\n"
+    target = validate_current_command(home)
+    command = "#!/bin/sh\n" + CURRENT_COMMAND_MARKER + "\nexec " + shlex.quote(str(plugin_dir / "scripts" / "launch.sh")) + " --current \"$@\"\n"
     atomic_write_bytes(target, command.encode(), mode=0o755)
     return {"path": str(target), "routing": "current_installed", "changed": True}
+
+
+def record_current_runtime(codex_home: Path, registration: dict[str, Any]) -> bool:
+    # Use the actual installedPath returned by Codex, never a guessed cache version.
+    try:
+        response = json.loads(registration.get("plugin_add", {}).get("output", "{}"))
+        installed_path = response.get("installedPath")
+        if not installed_path:
+            return False  # Older CLI versions may omit the path; source validation still applies.
+        path = Path(installed_path).resolve(strict=True)
+        cache = (codex_home / "plugins/cache/gemini-bridge-local/antigravity-bridge").resolve()
+        manifest = load_json_dict(path / "plugin.json", step="record_current_runtime")
+        if not path.is_relative_to(cache) or manifest.get("name") != PLUGIN_NAME or manifest.get("version") != response.get("version"):
+            raise ValueError("Installed cache metadata does not match")
+        atomic_write_json(get_marketplace_root(codex_home) / "active-runtime.json", {
+            "plugin": PLUGIN_SPEC, "version": response["version"], "path": str(path)})
+        return True
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise SetupError("Could not record verified installed runtime: " + str(exc), step="record_current_runtime") from exc
 
 
 def run_install(
@@ -1194,6 +1237,12 @@ def run_install(
     agents_path = get_codex_agents_path(codex_home)
     settings_path = get_agy_settings_path(home_dir)
     gemini_config_path = get_gemini_config_path(home_dir)
+    validate_current_command(home_dir)
+    if with_chrome or allow_development:
+        pre_settings = load_json_dict(settings_path, step="validate_permissions")
+        pre_permissions = pre_settings.get("permissions", {})
+        if not isinstance(pre_permissions, dict) or not isinstance(pre_permissions.get("allow", []), list):
+            raise SetupError("Existing permissions/allow policy has an invalid shape", step="validate_permissions")
 
     # Pre-validate opt-in config files and markers before mutating anything on disk.
     if auto_route and agents_path.exists():
@@ -1215,60 +1264,68 @@ def run_install(
     marketplace_root = get_marketplace_root(codex_home)
     dest_plugin_dir = get_durable_plugin_dir(codex_home)
 
-    copy_info = copy_plugin_allowlist(src_root, dest_plugin_dir)
-    manifest_path = write_marketplace_manifest(marketplace_root, dest_plugin_dir)
+    changes: list[str] = []
+    try:
+        copy_info = copy_plugin_allowlist(src_root, dest_plugin_dir)
+        changes.append("plugin_files_copied" if copy_info["copied"] else "plugin_files_preserved_in_place")
+        manifest_path = write_marketplace_manifest(marketplace_root, dest_plugin_dir)
+        changes.append("marketplace_manifest_written")
 
-    child_env = build_child_env(prereq["discovered_bin_dirs"])
-    codex_reg = register_codex_plugin(
-        codex_executable=str(prereq["codex"]["executable"]),
-        marketplace_root=marketplace_root,
-        env=child_env,
-    )
-
-    changes: list[str] = [
-        "plugin_files_copied" if copy_info["copied"] else "plugin_files_preserved_in_place",
-        "marketplace_manifest_written",
-        "codex_plugin_registered",
-    ]
-
-    chrome_mcp_result: dict[str, Any] = {"enabled": False, "changed": False}
-    if with_chrome:
-        durable_launch_chrome = dest_plugin_dir / "scripts" / "launch-chrome.sh"
-        chrome_mcp_result = configure_chrome_mcp(
-            agy_executable=str(prereq["agy"]["executable"]),
-            durable_launch_chrome=durable_launch_chrome,
+        child_env = build_child_env(prereq["discovered_bin_dirs"])
+        codex_reg = register_codex_plugin(
+            codex_executable=str(prereq["codex"]["executable"]),
+            marketplace_root=marketplace_root,
             env=child_env,
-            replace_chrome=replace_chrome,
         )
-        browser_permissions = configure_browser_permissions(settings_path)
-        chrome_mcp_result["permissions"] = browser_permissions
-        if browser_permissions["changed"]:
-            changes.append("chrome_mcp_permissions_configured")
-        if chrome_mcp_result.get("changed"):
-            changes.append("chrome_mcp_configured")
-        elif chrome_mcp_result.get("preserved_existing"):
-            changes.append("chrome_mcp_preserved_existing")
 
-    auto_route_result: dict[str, Any] = {"enabled": False, "changed": False}
-    if auto_route:
-        auto_route_result = configure_auto_route(agents_path)
-        if auto_route_result.get("changed"):
-            changes.append("agents_md_auto_route_updated")
 
-    dev_perms_result: dict[str, Any] = {"enabled": False, "changed": False}
-    if allow_development:
-        dev_perms_result = configure_development_permissions(settings_path)
-        if dev_perms_result.get("changed"):
-            changes.append("development_permissions_updated")
+        changes.append("codex_plugin_registered")
+        if record_current_runtime(codex_home, codex_reg):
+            changes.append("verified_runtime_recorded")
+        chrome_mcp_result: dict[str, Any] = {"enabled": False, "changed": False}
+        if with_chrome:
+            durable_launch_chrome = dest_plugin_dir / "scripts" / "launch-chrome.sh"
+            chrome_mcp_result = configure_chrome_mcp(
+                agy_executable=str(prereq["agy"]["executable"]),
+                durable_launch_chrome=durable_launch_chrome,
+                env=child_env,
+                replace_chrome=replace_chrome,
+            )
+            browser_permissions = configure_browser_permissions(settings_path)
+            chrome_mcp_result["permissions"] = browser_permissions
+            if browser_permissions["changed"]:
+                changes.append("chrome_mcp_permissions_configured")
+            if chrome_mcp_result.get("changed"):
+                changes.append("chrome_mcp_configured")
+            elif chrome_mcp_result.get("preserved_existing"):
+                changes.append("chrome_mcp_preserved_existing")
 
-    credit_result: dict[str, Any] = {"enabled": False, "changed": False}
-    if disable_credit_overage:
-        credit_result = configure_credit_overage(settings_path, gemini_config_path)
-        if credit_result.get("changed"):
-            changes.append("credit_overage_disabled")
+        auto_route_result: dict[str, Any] = {"enabled": False, "changed": False}
+        if auto_route:
+            auto_route_result = configure_auto_route(agents_path)
+            if auto_route_result.get("changed"):
+                changes.append("agents_md_auto_route_updated")
 
-    current_command = install_current_command(dest_plugin_dir, home_dir)
-    changes.append("current_runtime_command_installed")
+        dev_perms_result: dict[str, Any] = {"enabled": False, "changed": False}
+        if allow_development:
+            dev_perms_result = configure_development_permissions(settings_path)
+            if dev_perms_result.get("changed"):
+                changes.append("development_permissions_updated")
+
+        credit_result: dict[str, Any] = {"enabled": False, "changed": False}
+        if disable_credit_overage:
+            credit_result = configure_credit_overage(settings_path, gemini_config_path)
+            if credit_result.get("changed"):
+                changes.append("credit_overage_disabled")
+
+        current_command = install_current_command(dest_plugin_dir, home_dir)
+        changes.append("current_runtime_command_installed")
+    except (SetupError, OSError) as exc:
+        error = exc if isinstance(exc, SetupError) else SetupError(str(exc), step="filesystem")
+        error.completed_steps = list(changes)
+        error.plugin_registered = "codex_plugin_registered" in changes
+        raise error
+
     return {
         "ok": True,
         "installed": True,
@@ -1389,7 +1446,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         except SetupError as exc:
             err_payload = {
                 "ok": False,
-                "installed": False,
+                "installed": bool(getattr(exc, "plugin_registered", False)),
+                "partial": bool(getattr(exc, "completed_steps", [])),
+                "completed_steps": getattr(exc, "completed_steps", []),
                 "failed_step": exc.step,
                 "error": redact_secrets(exc.message),
             }

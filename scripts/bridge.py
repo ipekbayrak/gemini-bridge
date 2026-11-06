@@ -39,7 +39,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from task_access import TaskAccessError, validate_access, prepare_settings, describe_access
 
 SERVER_NAME = "antigravity-bridge"
-SERVER_VERSION = "0.3.1"
+SERVER_VERSION = "0.3.2"
 MCP_PROTOCOL_VERSION = "2024-11-05"
 
 PROFILE_TO_MODEL: dict[str, str] = {
@@ -103,7 +103,7 @@ SECRET_REDACT_RE = re.compile(
 FIXED_PREAMBLE = (
     "[ANTIGRAVITY BRIDGE INSTRUCTIONS — NOTE: These are prompt instructions only, "
     "NOT a security sandbox]\n"
-    "- Stay strictly within the supplied task and workspace directory.\n"
+    "- Stay within the supplied task. Writes belong only in the workspace; explicit task-authorized read-only access declarations also permit those exact external URLs/files.\n"
     "- Follow AGENTS.md instructions in the workspace.\n"
     "- Do not make architecture or UI changes beyond the supplied specification.\n"
     "- Do not deploy, publish, send messages, or access/copy accounts or credentials.\n"
